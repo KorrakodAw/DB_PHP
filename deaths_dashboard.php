@@ -12,10 +12,10 @@
 <body>
     <?php include 'navbar.php' ?>
     <div class="container">
-        <h1>กราฟแสดงจำนวนผู้เสียชีวิตและผู้ติดเชื้อ</h1>
+        <h1>กราฟแสดงจำนวนผู้เสียชีวิตและผู้ติดเชื้อใน US</h1>
 
         <!-- เลือกประเทศ -->
-        <label for="country">เลือกประเทศ:</label>
+        <label for="country">เลือกรัฐ:</label>
         <select name="country" id="country" required>
             <!-- รายชื่อประเทศจะถูกดึงจากฐานข้อมูล -->
         </select>
@@ -39,114 +39,159 @@
         </select>
 
         <div id="noDataMessage" style="color:red; display:none;">ยังไม่มีข้อมูลในเดือนนี้</div>
-        <!-- กราฟ -->
-        <canvas id="countryChart" width="400" height="200"></canvas>
+
+        <!-- กราฟผู้เสียชีวิต -->
+        <canvas id="deathsChart" width="400" height="200"></canvas>
+
+        <!-- กราฟผู้ติดเชื้อ -->
+        <canvas id="casesChart" width="400" height="200"></canvas>
     </div>
+    <div>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const countrySelect = document.getElementById('country');
+                const monthSelect = document.getElementById('month');
+                const deathsChartCanvas = document.getElementById('deathsChart').getContext('2d');
+                const casesChartCanvas = document.getElementById('casesChart').getContext('2d');
+                const noDataMessage = document.getElementById('noDataMessage');
+                let deathsChart;
+                let casesChart;
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const countrySelect = document.getElementById('country');
-            const monthSelect = document.getElementById('month');
-            const chartCanvas = document.getElementById('countryChart').getContext('2d');
-            const noDataMessage = document.getElementById('noDataMessage');
-            let countryChart;
+                // ฟังก์ชันดึงข้อมูลจากฐานข้อมูล
+                function fetchData(country, month) {
+                    const url = `deaths_gengraph.php?country=${country}&month=${month}`;
 
-            // ฟังก์ชันดึงข้อมูลจากฐานข้อมูล
-            function fetchData(country, month) {
-                const url = `deaths_gengraph.php?country=${country}&month=${month}`;
-
-                fetch(url)
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log(data); // ตรวจสอบข้อมูลที่ได้
-                        if (data.error) {
-                            noDataMessage.textContent = data.error;
-                            noDataMessage.style.display = 'block'; // แสดงข้อความเตือน
-                            if (countryChart) {
-                                countryChart.destroy(); // ลบกราฟเดิมออก
+                    fetch(url)
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log(data); // ตรวจสอบข้อมูลที่ได้
+                            if (data.error) {
+                                noDataMessage.textContent = data.error;
+                                noDataMessage.style.display = 'block'; // แสดงข้อความเตือน
+                                if (deathsChart) deathsChart.destroy(); // ลบกราฟเดิมออก
+                                if (casesChart) casesChart.destroy();
+                                return;
                             }
-                            return;
-                        }
 
-                        noDataMessage.style.display = 'none';
+                            noDataMessage.style.display = 'none';
 
-                        const dates = data.map(item => item.date);
-                        const deaths = data.map(item => item.total_deaths);
-                        const cases = data.map(item => item.total_cases);
+                            const dates = data.map(item => item.date);
+                            const deaths = data.map(item => item.total_deaths);
+                            const cases = data.map(item => item.total_cases);
 
-                        console.log('Dates:', dates);
-                        console.log('Deaths:', deaths);
-                        console.log('Cases:', cases);
+                            console.log('Dates:', dates);
+                            console.log('Deaths:', deaths);
+                            console.log('Cases:', cases);
 
-                        // อัปเดตกราฟ
-                        updateChart(dates, deaths, cases);
-                    })
-                    .catch(error => console.error('Error fetching data:', error));
-            }
-
-            // ฟังก์ชันอัปเดตกราฟ (แบบ Bar Chart)
-            function updateChart(dates, deaths, cases) {
-                if (countryChart) {
-                    countryChart.destroy(); // ลบกราฟเดิมก่อนสร้างใหม่
+                            // อัปเดตกราฟ
+                            updateCharts(dates, deaths, cases);
+                        })
+                        .catch(error => console.error('Error fetching data:', error));
                 }
 
-                countryChart = new Chart(chartCanvas, {
-                    type: 'bar', // กำหนดให้เป็น Bar Chart
-                    data: {
-                        labels: dates, // แกน X (วันที่)
-                        datasets: [{
-                            label: 'จำนวนผู้เสียชีวิต',
-                            data: deaths, // ข้อมูลจำนวนผู้เสียชีวิต
-                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                            borderColor: 'rgba(255, 99, 132, 1)',
-                            borderWidth: 1
+                // ฟังก์ชันอัปเดตกราฟแยกกัน
+                function updateCharts(dates, deaths, cases) {
+                    // ลบกราฟเดิมก่อนสร้างใหม่
+                    if (deathsChart) deathsChart.destroy();
+                    if (casesChart) casesChart.destroy();
+
+                    // หาค่าต่ำสุดและสูงสุดของข้อมูลผู้เสียชีวิตและผู้ติดเชื้อ
+                    const minDeaths = Math.min(...deaths);
+                    const maxDeaths = Math.max(...deaths);
+                    const minCases = Math.min(...cases);
+                    const maxCases = Math.max(...cases);
+
+                    // สร้างกราฟผู้เสียชีวิต
+                    deathsChart = new Chart(deathsChartCanvas, {
+                        type: 'line',
+                        data: {
+                            labels: dates,
+                            datasets: [{
+                                label: 'จำนวนผู้เสียชีวิต',
+                                data: deaths,
+                                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                borderWidth: 1
+                            }]
                         },
-                        {
-                            label: 'จำนวนผู้ติดเชื้อ',
-                            data: cases, // ข้อมูลจำนวนผู้ติดเชื้อ
-                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            borderWidth: 1
-                        }]
-                    },
-                    options: {
-                        scales: {
-                            y: {
-                                beginAtZero: true // ให้แกน Y เริ่มจากศูนย์
+                        options: {
+                            scales: {
+                                x: {
+                                    display: false // ซ่อนแกน X
+                                },
+                                y: {
+                                    min: minDeaths - (minDeaths * 0.1), // กำหนดค่าต่ำสุดให้ต่ำกว่าค่าน้อยสุดเล็กน้อย
+                                    max: maxDeaths + (maxDeaths * 0.1), // กำหนดค่าสูงสุดให้สูงกว่าค่าสูงสุดเล็กน้อย
+                                    beginAtZero: false // ปิดการเริ่มจาก 0 เพื่อให้กราฟโฟกัสที่ช่วงที่มีข้อมูล
+                                }
                             }
                         }
-                    }
-                });
-            }
-
-            // โหลดรายชื่อประเทศจากฐานข้อมูล (AJAX)
-            fetch('deaths_gengraph.php?getCountries=1')
-                .then(response => response.json())
-                .then(countries => {
-                    countries.forEach(country => {
-                        const option = document.createElement('option');
-                        option.value = country;
-                        option.textContent = country;
-                        countrySelect.appendChild(option);
                     });
 
-                    // เลือกประเทศแรกเป็นค่าเริ่มต้น
-                    const firstCountry = countrySelect.value;
-                    const firstMonth = monthSelect.value; // ค่าเริ่มต้นคือไม่เลือกเดือน
-                    fetchData(firstCountry, firstMonth);
+                    // สร้างกราฟผู้ติดเชื้อ
+                    casesChart = new Chart(casesChartCanvas, {
+                        type: 'line',
+                        data: {
+                            labels: dates,
+                            datasets: [{
+                                label: 'จำนวนผู้ติดเชื้อ',
+                                data: cases,
+                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            scales: {
+                                x: {
+                                    display: false // ซ่อนแกน X
+                                },
+                                y: {
+                                    min: minCases - (minCases * 0.1), // กำหนดค่าต่ำสุดให้ต่ำกว่าค่าน้อยสุดเล็กน้อย
+                                    max: maxCases + (maxCases * 0.1), // กำหนดค่าสูงสุดให้สูงกว่าค่าสูงสุดเล็กน้อย
+                                    beginAtZero: false // ปิดการเริ่มจาก 0 เพื่อให้กราฟโฟกัสที่ช่วงที่มีข้อมูล
+                                }
+                            }
+                        }
+                    });
+                }
+
+
+
+                // โหลดรายชื่อประเทศจากฐานข้อมูล (AJAX)
+fetch('deaths_gengraph.php?getCountries=1')
+    .then(response => response.json())
+    .then(countries => {
+        // เรียงลำดับชื่อประเทศตามตัวอักษร
+        countries.sort((a, b) => a.localeCompare(b));
+
+        countries.forEach(country => {
+            const option = document.createElement('option');
+            option.value = country;
+            option.textContent = country;
+            countrySelect.appendChild(option);
+        });
+
+        // เลือกประเทศแรกเป็นค่าเริ่มต้น
+        const firstCountry = countrySelect.value;
+        const firstMonth = monthSelect.value; // ค่าเริ่มต้นคือไม่เลือกเดือน
+        fetchData(firstCountry, firstMonth);
+    });
+
+
+                // เปลี่ยนประเทศอัตโนมัติ
+                countrySelect.addEventListener('change', function() {
+                    fetchData(this.value, monthSelect.value);
                 });
 
-            // เปลี่ยนประเทศอัตโนมัติ
-            countrySelect.addEventListener('change', function () {
-                fetchData(this.value, monthSelect.value);
+                // เปลี่ยนเดือนอัตโนมัติ
+                monthSelect.addEventListener('change', function() {
+                    fetchData(countrySelect.value, this.value);
+                });
             });
+        </script>
+    </div>
 
-            // เปลี่ยนเดือนอัตโนมัติ
-            monthSelect.addEventListener('change', function () {
-                fetchData(countrySelect.value, this.value);
-            });
-        });
-    </script>
 
 </body>
 

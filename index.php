@@ -40,7 +40,7 @@
                 let chart;
 
                 // Function to fetch data from PHP backend
-                async function fetchMaskData(country) {
+                async function fetchMaskData(country = "") {
                     let url = 'show_graph.php';
                     if (country) {
                         url += `?country=${country}`;
@@ -52,9 +52,7 @@
                 }
 
                 // Function to plot or update the chart
-                async function plotChart(country) {
-                    if (!country) return; // Only plot chart if a country is selected
-
+                async function plotChart(country = "") {
                     const maskData = await fetchMaskData(country);
 
                     const labels = maskData.map(item => item.COUNTYFP);
@@ -74,9 +72,8 @@
                     chart = new Chart(ctx, {
                         type: 'bar',
                         data: {
-                            labels: labels, // Display COUNTYFP as label
-                            datasets: [
-                                {
+                            labels: labels,
+                            datasets: [{
                                     label: 'Never',
                                     data: neverData,
                                     backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -129,8 +126,30 @@
                     plotChart(selectedCountry);
                 }
 
-                // Removed the initial chart plotting for all countries
+                // Initial chart plotting for the first country when the page loads
+                document.addEventListener("DOMContentLoaded", async function() {
+                    const countrySelect = document.getElementById('countrySelect');
+                    if (countrySelect.options.length > 1) {
+                        const firstCountry = countrySelect.options[1].value; // Get the first non-placeholder country
+                        countrySelect.value = firstCountry;
+                        plotChart(firstCountry); // Plot with the first country as default
+                    }
+                });
             </script>
+
+
+            // Function to update chart based on country selection
+            function updateChart() {
+            const selectedCountry = document.getElementById('countrySelect').value;
+            plotChart(selectedCountry);
+            }
+
+            // Initial chart plotting for all countries when the page loads
+            document.addEventListener("DOMContentLoaded", function() {
+            plotChart(); // Plot with all data initially
+            });
+            </script>
+
         </div>
     </div>
 
